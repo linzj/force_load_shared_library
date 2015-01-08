@@ -23,18 +23,20 @@ public:
   };
 
 private:
-  virtual bool found (ptracer *ptracer, intptr_t dest);
+  virtual bool found (ptracer *ptracer, intptr_t target_location,
+                      intptr_t target);
   bool okay_;
 };
 
 test_got_finder_client::test_got_finder_client () : okay_ (false) {}
 
 bool
-test_got_finder_client::found (ptracer *ptracer, intptr_t dest)
+test_got_finder_client::found (ptracer *ptracer, intptr_t target_location,
+                               intptr_t target)
 {
-  LOGI ("test_got_finder_client::found, found dlopen at %08lx\n", dest);
+  LOGI ("test_got_finder_client::found, found dlopen at %08lx\n", target);
   plt_caller caller;
-  caller.call (ptracer, dest, "./libtest.so");
+  caller.call (ptracer, target_location, target, "./libtest.so");
   okay_ = true;
   return true;
 }

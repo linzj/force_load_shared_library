@@ -11,7 +11,8 @@ class got_finder_client
 public:
   virtual ~got_finder_client ();
 
-  virtual bool found (ptracer *ptracer, intptr_t dest) = 0;
+  virtual bool found (ptracer *ptracer, intptr_t target_location,
+                      intptr_t target) = 0;
 };
 
 class got_finder

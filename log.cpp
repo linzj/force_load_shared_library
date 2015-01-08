@@ -33,6 +33,7 @@ loge (const char *fmt, ...)
 #ifndef __ANDROID__
   fputs (buf, stdout);
 #else
+  fputs (buf, stderr);
   __android_log_write (ANDROID_LOG_ERROR, "LINZJ", buf);
 #endif
 }

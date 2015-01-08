@@ -5,7 +5,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/ptrace.h>
-#include <sys/signal.h>
 #include <stdint.h>
 
 ptracer::ptracer (pid_t tid) : tid_ (tid), attached_ (false) {}
@@ -56,15 +55,6 @@ ptracer::continue_and_wait ()
       LOGE ("ptracer::continue_and_wait:fails to wait: %s\n",
             strerror (errno));
     }
-#if 0
-  siginfo_t info;
-  ptrace (PTRACE_GETSIGINFO, tid_, NULL, &info);
-  LOGI ("siginfo si_signo = %d, si_code = %d, si_addr = %08lx\n", info.si_signo, info.si_code, info.si_addr);
-  user_regs_struct r;
-  ptrace (PTRACE_GETREGS, tid_, NULL, &r);
-  LOGI ("rax = %08lx, rbx = %08lx, rcx = %08lx, rdx = %08lx, rdi = %08lx, rsi = %08lx, rsp = %08lx, rbp = %08lx, rip = %08lx\n",
-        r.rax, r.rbx, r.rcx, r.rdx, r.rdi, r.rsi, r.rsp, r.rbp, r.rip);
-#endif
 }
 
 template <class T>
@@ -81,7 +71,11 @@ bool
 ptracer::read_memory (void *buffer, size_t s, intptr_t dest)
 {
   if (!attached_)
-    return false;
+    {
+      LOGE ("ptracer::read_memory: not attached.\n");
+
+      return false;
+    }
   if (!check_align (buffer))
     {
       LOGE ("ptracer::read_memory: buffer not align to word size of the "
@@ -98,7 +92,8 @@ ptracer::read_memory (void *buffer, size_t s, intptr_t dest)
   intptr_t *_buffer = static_cast<intptr_t *> (buffer);
   for (size_t i = 0; i < count; ++i, dest += sizeof (intptr_t))
     {
-      long v = ptrace (PTRACE_PEEKDATA, tid_, dest, 0);
+      long v
+          = ptrace (PTRACE_PEEKDATA, tid_, reinterpret_cast<void *> (dest), 0);
       if (errno)
         {
           LOGE ("ptracer::read_memory: peek data fail %s.\n",
@@ -131,7 +126,7 @@ ptracer::write_memory (void *buffer, size_t s, intptr_t dest)
   intptr_t *_buffer = static_cast<intptr_t *> (buffer);
   for (size_t i = 0; i < count; ++i, dest += sizeof (intptr_t))
     {
-      long r = ptrace (PTRACE_POKEDATA, tid_, dest,
+      long r = ptrace (PTRACE_POKEDATA, tid_, reinterpret_cast<void *> (dest),
                        reinterpret_cast<void *> (_buffer[i]));
       if (r == -1)
         {
@@ -166,6 +161,20 @@ ptracer::set_regs (user_regs_struct *regs)
   if (ret == -1)
     {
       LOGE ("ptracer::set_regs : %s\n", strerror (errno));
+      return false;
+    }
+  return true;
+}
+
+bool
+ptracer::get_siginfo (siginfo_t *info)
+{
+  if (!attached_)
+    return false;
+  int ret = ptrace (PTRACE_GETSIGINFO, tid_, NULL, info);
+  if (ret == -1)
+    {
+      LOGE ("ptracer::get_siginfo : %s\n", strerror (errno));
       return false;
     }
   return true;

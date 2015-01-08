@@ -9,7 +9,8 @@ class plt_caller
 {
 public:
   plt_caller ();
-  bool call (ptracer *ptracer, intptr_t target, const char *soname);
+  bool call (ptracer *ptracer, intptr_t target_location, intptr_t target,
+             const char *soname);
 
 private:
 };

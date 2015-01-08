@@ -1,6 +1,7 @@
 #include "got_finder.h"
 #include "ptracer.h"
 #include "log.h"
+#include "plt_caller.h"
 #include <stdio.h>
 #include <assert.h>
 #include <dlfcn.h>
@@ -34,8 +35,10 @@ test_got_finder_client::found (ptracer *ptracer, intptr_t target_location,
                                intptr_t target)
 {
   LOGI ("test_got_finder_client::found, found dlopen at %08lx\n", target);
+  plt_caller caller;
+  caller.call (ptracer, target_location, target, "./libtest.so");
   okay_ = true;
-  return false;
+  return true;
 }
 
 void
@@ -122,6 +125,7 @@ main ()
 #endif
       close (sv[0]);
       do_test ();
+      LOGI ("dlopen = %p\n", dlopen);
       int num = 0;
       do
         {

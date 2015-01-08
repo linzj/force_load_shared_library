@@ -569,7 +569,9 @@ typedef struct elf64_note
 #define ElfW(type) Elf32_##type
 #endif
 
+#ifndef offsetof
 #define offsetof(TYPE, MEMBER) ((size_t) & ((TYPE *)0)->MEMBER)
+#endif
 
 bool
 got_finder::check_elf (unsigned long start, ptracer *ptracer, bool *is_elf32)
@@ -578,8 +580,7 @@ got_finder::check_elf (unsigned long start, ptracer *ptracer, bool *is_elf32)
   if (!ptracer->read_memory (e_ident, sizeof (e_ident), start))
     {
       impl_->fatal_occured_ = true;
-      LOGE ("got_finder::check_elf: fails to read memory: %s\n",
-            strerror (errno));
+      LOGE ("got_finder::check_elf: fails to read memory.\n");
       return false;
     }
   if (memcmp (e_ident, ELFMAG, SELFMAG))
@@ -732,11 +733,15 @@ got_finder::deal_with_elf (unsigned long start, unsigned long end,
   std::string strtab;
   size_t rounded_strtab_size = round_up (impl_->strtab_size_);
   strtab.reserve (rounded_strtab_size);
+  intptr_t strtab_start = impl_->strtab_start_;
+#if defined(ANDROID)
+  strtab_start += start;
+#endif
   if (!ptracer->read_memory (const_cast<char *> (strtab.data ()),
-                             rounded_strtab_size, impl_->strtab_start_))
+                             rounded_strtab_size, strtab_start))
     {
       LOGE ("got_finder::deal_with_elf fill strtab fails, dest %lx\n",
-            impl_->strtab_start_);
+            strtab_start);
       impl_->fatal_occured_ = true;
       return false;
     }
@@ -819,7 +824,11 @@ got_finder::got_finder_impl::deal_with_elf_relocation (
 {
   size_t rounded_plt_got_size = round_up (plt_got_size_);
   char buf[rounded_plt_got_size];
-  if (!ptracer->read_memory (buf, rounded_plt_got_size, jmprel_start_))
+  intptr_t jmprel_start = jmprel_start_;
+#if defined(ANDROID)
+  jmprel_start += start;
+#endif
+  if (!ptracer->read_memory (buf, rounded_plt_got_size, jmprel_start))
     {
       LOGE ("got_finder::got_finder_impl::deal_with_elf_relocation:read "
             "memory fails, %d.\n",
@@ -844,10 +853,14 @@ got_finder::got_finder_impl::deal_with_elf_relocation (
           = round_up (sizeof (typename myelfdeducer::elf_sym));
       char buf2[rounded_sym_size];
       int sym_index = myreldeducer::sym_index (r->r_info);
+      intptr_t symtab_start = symtab_start_;
+#if defined(ANDROID)
+      symtab_start += start;
+#endif
       if (!ptracer->read_memory (buf2, rounded_sym_size,
                                  sizeof (typename myelfdeducer::elf_sym)
                                          * sym_index
-                                     + symtab_start_))
+                                     + symtab_start))
         {
           LOGE ("got_finder::got_finder_impl::deal_with_elf_relocation:read "
                 "memory fails, %d.\n",
@@ -869,7 +882,7 @@ got_finder::got_finder_impl::deal_with_elf_relocation (
           fatal_occured_ = true;
           return false;
         }
-      return client->found (ptracer, addr);
+      return client->found (ptracer, r->r_offset + start, addr);
     }
   return false;
 }

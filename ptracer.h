@@ -6,6 +6,9 @@
 #else
 #include <asm/user.h>
 #endif
+#include <signal.h>
+
+struct user_regs_struct;
 
 class ptracer
 {
@@ -20,6 +23,7 @@ public:
   bool write_memory (void *buffer, size_t s, intptr_t dest);
   bool get_regs (user_regs_struct *);
   bool set_regs (user_regs_struct *);
+  bool get_siginfo (siginfo_t *);
 
 private:
   pid_t tid_;
