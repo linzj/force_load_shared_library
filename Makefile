@@ -1,5 +1,5 @@
 .PHONY: all test
-all:
+all: ldso
 TESTS := got_finder_test \
 		 plt_caller_test
 
@@ -7,6 +7,7 @@ test: $(TESTS)
 MAIN_OBJS := log.o \
 		got_finder.o \
 		ptracer.o \
+		main.o
 
 MAIN_TEST_OBJS :=  \
 				  got_finder_test.o \
@@ -53,6 +54,9 @@ plt_caller_test: got_finder.o log.o ptracer.o x64/plt_caller_test.o x64/plt_call
 
 libtest.so: test.o
 	g++ $(LDFLAGS) -shared -o $@ $^ $(LDLIBS)
+
+ldso: $(MAIN_OBJS) $(X64_MAIN_OBJS)
+	g++ $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 clean:
 	rm *.o *.d **/*.o **/*.d

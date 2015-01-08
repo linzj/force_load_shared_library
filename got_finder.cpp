@@ -23,6 +23,7 @@ struct got_finder::got_finder_impl
   int plt_got_rel_type_;
   mask_type filled_mask_;
   bool fatal_occured_;
+  bool is_dyn_;
 
   got_finder_impl ();
 
@@ -703,6 +704,7 @@ got_finder::deal_with_elf (unsigned long start, unsigned long end,
       impl_->fatal_occured_ = true;
       return false;
     }
+  impl_->is_dyn_ = (hdr.e_type == ET_DYN);
   elf_phdr phdr;
   assert ((sizeof (phdr) & (sizeof (intptr_t) - 1)) == 0);
   intptr_t phdr_indexer = start + hdr.e_phoff;
@@ -722,11 +724,17 @@ got_finder::deal_with_elf (unsigned long start, unsigned long end,
             "header.\n");
       return false;
     }
-  unsigned long start_of_dyn = phdr.p_vaddr + start;
+  unsigned long start_of_dyn = phdr.p_vaddr;
+  if (impl_->is_dyn_)
+    {
+      start_of_dyn += start;
+    }
   unsigned long end_of_dyn = start_of_dyn + phdr.p_memsz;
   if (!fill_impl_with_dyn<elf_dynamic> (start_of_dyn, end_of_dyn, ptracer))
     {
-      LOGE ("got_finder::deal_with_elf fill_impl_with_dyn fails\n");
+      LOGE ("got_finder::deal_with_elf fill_impl_with_dyn fails, start_of_dyn "
+            "%08lx, end_of_dyn %08lx\n",
+            start_of_dyn, end_of_dyn);
       return false;
     }
   // fill str table
@@ -877,12 +885,17 @@ got_finder::got_finder_impl::deal_with_elf_relocation (
       // a match.
       // read back the address first.
       intptr_t addr;
-      if (!ptracer->read_memory (&addr, sizeof (addr), r->r_offset + start))
+      intptr_t location = r->r_offset;
+      if (is_dyn_)
+        {
+          location += start;
+        }
+      if (!ptracer->read_memory (&addr, sizeof (addr), location))
         {
           fatal_occured_ = true;
           return false;
         }
-      return client->found (ptracer, r->r_offset + start, addr);
+      return client->found (ptracer, location, addr);
     }
   return false;
 }
