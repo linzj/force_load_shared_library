@@ -22,6 +22,7 @@ public:
              got_finder_client *client);
 
 private:
+  bool check_elf (unsigned long start, ptracer *ptracer, bool *is_elf32);
   bool deal_with (unsigned long start, unsigned long end, ptracer *ptracer,
                   const char *name, got_finder_client *client);
   template <class elf_header_type>

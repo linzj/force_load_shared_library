@@ -17,7 +17,7 @@ struct got_finder::got_finder_impl
   intptr_t symtab_start_;
   intptr_t strtab_start_;
   intptr_t strtab_size_;
-  intptr_t plt_got_start_;
+  intptr_t jmprel_start_;
   size_t plt_got_size_;
   int plt_got_rel_type_;
   mask_type filled_mask_;
@@ -35,7 +35,7 @@ struct got_finder::got_finder_impl
 static mask_type symtab_start_bit = (1 << 0);
 static mask_type strtab_start_bit = (1 << 1);
 static mask_type strtab_size_bit = (1 << 2);
-static mask_type plt_got_start_bit = (1 << 3);
+static mask_type jmprel_start_bit = (1 << 3);
 static mask_type plt_got_size_bit = (1 << 4);
 static mask_type plt_got_rel_type_bit = (1 << 5);
 static mask_type mandatory_mask = (1 << 6) - 1;
@@ -109,14 +109,13 @@ got_finder::find (ptracer *ptracer, const char *name, pid_t tid,
           break;
         }
       end_of_first_match++; // skip -
-      end = strtoul (str, &end_of_first_match, 16);
+      end = strtoul (end_of_first_match, NULL, 16);
       if (errno)
         {
           LOGE ("got_finder::find: strtoul fails %d:%s\n", __LINE__,
                 strerror (errno));
           break;
         }
-
       if (deal_with (start, end, ptracer, name, client))
         {
           _deal_with = true;
@@ -571,15 +570,18 @@ typedef struct elf64_note
 
 #define offsetof(TYPE, MEMBER) ((size_t) & ((TYPE *)0)->MEMBER)
 
-static bool
-check_elf (unsigned long start, ptracer *ptracer, bool *is_elf32)
+bool
+got_finder::check_elf (unsigned long start, ptracer *ptracer, bool *is_elf32)
 {
   unsigned char e_ident[EI_NIDENT];
   if (!ptracer->read_memory (e_ident, sizeof (e_ident), start))
     {
+      impl_->fatal_occured_ = true;
+      LOGE ("got_finder::check_elf: fails to read memory: %s\n",
+            strerror (errno));
       return false;
     }
-  if (memcpy (e_ident, ELFMAG, SELFMAG))
+  if (memcmp (e_ident, ELFMAG, SELFMAG))
     {
       return false;
     }
@@ -666,9 +668,9 @@ got_finder::fill_impl_with_dyn (unsigned long start, unsigned long end,
           impl_->strtab_size_ = pdyn->d_un.d_val;
           impl_->filled_mask_ |= strtab_size_bit;
           break;
-        case DT_PLTGOT:
-          impl_->plt_got_start_ = pdyn->d_un.d_ptr;
-          impl_->filled_mask_ |= plt_got_start_bit;
+        case DT_JMPREL:
+          impl_->jmprel_start_ = pdyn->d_un.d_ptr;
+          impl_->filled_mask_ |= jmprel_start_bit;
           break;
         case DT_PLTRELSZ:
           impl_->plt_got_size_ = pdyn->d_un.d_val;
@@ -736,11 +738,11 @@ got_finder::deal_with_elf (unsigned long start, unsigned long end,
   std::string strtab;
   size_t rounded_strtab_size = round_up (impl_->strtab_size_);
   strtab.reserve (rounded_strtab_size);
-  if (!ptracer->read_memory (reinterpret_cast<void *> (strtab.data ()),
-                             rounded_strtab_size,
-                             start + impl_->strtab_start_))
+  if (!ptracer->read_memory (const_cast<char *> (strtab.data ()),
+                             rounded_strtab_size, impl_->strtab_start_))
     {
-      LOGE ("got_finder::deal_with_elf fill strtab fails\n");
+      LOGE ("got_finder::deal_with_elf fill strtab fails, dest %lx\n",
+            impl_->strtab_start_);
       impl_->fatal_occured_ = true;
       return false;
     }
@@ -823,8 +825,7 @@ got_finder::got_finder_impl::deal_with_elf_relocation (
 {
   size_t rounded_plt_got_size = round_up (plt_got_size_);
   char buf[rounded_plt_got_size];
-  if (!ptracer->read_memory (buf, rounded_plt_got_size,
-                             start + plt_got_start_))
+  if (!ptracer->read_memory (buf, rounded_plt_got_size, jmprel_start_))
     {
       LOGE ("got_finder::got_finder_impl::deal_with_elf_relocation:read "
             "memory fails, %d.\n",
@@ -834,7 +835,7 @@ got_finder::got_finder_impl::deal_with_elf_relocation (
     }
 
   typedef relocation_deducer<elf_relocation_type> myreldeducer;
-  typedef elf_deducer<elf_relocation_type> myelfdeducer;
+  typedef elf_deducer<elf_header_type> myelfdeducer;
 
   for (
       elf_relocation_type *r = reinterpret_cast<elf_relocation_type *> (buf);
@@ -845,13 +846,14 @@ got_finder::got_finder_impl::deal_with_elf_relocation (
         {
           continue;
         }
-      size_t rounded_sym_size = round_up (sizeof (myelfdeducer::elf_sym));
+      size_t rounded_sym_size
+          = round_up (sizeof (typename myelfdeducer::elf_sym));
       char buf2[rounded_sym_size];
       int sym_index = myreldeducer::sym_index (r->r_info);
-      if (!ptracer->read_memory (
-              buf2, rounded_sym_size,
-              start + sizeof (myelfdeducer::elf_sym) * sym_index
-                  + symtab_start_))
+      if (!ptracer->read_memory (buf2, rounded_sym_size,
+                                 sizeof (typename myelfdeducer::elf_sym)
+                                         * sym_index
+                                     + symtab_start_))
         {
           LOGE ("got_finder::got_finder_impl::deal_with_elf_relocation:read "
                 "memory fails, %d.\n",
@@ -866,7 +868,7 @@ got_finder::got_finder_impl::deal_with_elf_relocation (
           continue;
         }
       // a match.
-      return client->found (r->r_offset, ptracer);
+      return client->found (ptracer, r->r_offset + start);
     }
   return false;
 }

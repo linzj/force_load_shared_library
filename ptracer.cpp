@@ -61,7 +61,7 @@ template <class T>
 inline static bool
 check_align (T t)
 {
-  intptr_t i = reinterpret_cast<intptr_t> (t);
+  intptr_t i = (intptr_t)(t);
   if (i & (sizeof (intptr_t) - 1))
     return false;
   return true;
