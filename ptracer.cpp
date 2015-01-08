@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/ptrace.h>
 #include <stdint.h>
 
 ptracer::ptracer (pid_t tid) : tid_ (tid), attached_ (false) {}
@@ -47,6 +48,7 @@ ptracer::continue_and_wait ()
     return;
   ptrace (PTRACE_CONT, tid_, NULL, NULL);
   int status;
+  int ret;
   ret = waitpid (tid_, &status, 0);
   if (ret == -1)
     {
@@ -132,7 +134,7 @@ ptracer::write_memory (void *buffer, size_t s, intptr_t dest)
 }
 
 bool
-ptracer::get_regs (pt_regs *regs)
+ptracer::get_regs (user_regs_struct *regs)
 {
   if (!attached_)
     return false;
@@ -146,7 +148,7 @@ ptracer::get_regs (pt_regs *regs)
 }
 
 bool
-ptracer::set_regs (pt_regs *regs)
+ptracer::set_regs (user_regs_struct *regs)
 {
   if (!attached_)
     return false;
