@@ -1,6 +1,7 @@
 #include "ptracer.h"
 #include "got_finder.h"
 #include "log.h"
+#include "round.h"
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -631,13 +632,6 @@ template <> struct elf_deducer<Elf64_Ehdr>
   typedef Elf64_Sym elf_sym;
 };
 
-template <class T>
-static inline T
-round_up (T t)
-{
-  return (t + sizeof (T) - 1) & ~(sizeof (T) - 1);
-}
-
 template <class dynamic_type>
 bool
 got_finder::fill_impl_with_dyn (unsigned long start, unsigned long end,
@@ -868,7 +862,14 @@ got_finder::got_finder_impl::deal_with_elf_relocation (
           continue;
         }
       // a match.
-      return client->found (ptracer, r->r_offset + start);
+      // read back the address first.
+      intptr_t addr;
+      if (!ptracer->read_memory (&addr, sizeof (addr), r->r_offset + start))
+        {
+          fatal_occured_ = true;
+          return false;
+        }
+      return client->found (ptracer, addr);
     }
   return false;
 }

@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/ptrace.h>
+#include <sys/signal.h>
 #include <stdint.h>
 
 ptracer::ptracer (pid_t tid) : tid_ (tid), attached_ (false) {}
@@ -55,6 +56,15 @@ ptracer::continue_and_wait ()
       LOGE ("ptracer::continue_and_wait:fails to wait: %s\n",
             strerror (errno));
     }
+#if 0
+  siginfo_t info;
+  ptrace (PTRACE_GETSIGINFO, tid_, NULL, &info);
+  LOGI ("siginfo si_signo = %d, si_code = %d, si_addr = %08lx\n", info.si_signo, info.si_code, info.si_addr);
+  user_regs_struct r;
+  ptrace (PTRACE_GETREGS, tid_, NULL, &r);
+  LOGI ("rax = %08lx, rbx = %08lx, rcx = %08lx, rdx = %08lx, rdi = %08lx, rsi = %08lx, rsp = %08lx, rbp = %08lx, rip = %08lx\n",
+        r.rax, r.rbx, r.rcx, r.rdx, r.rdi, r.rsi, r.rsp, r.rbp, r.rip);
+#endif
 }
 
 template <class T>
@@ -138,7 +148,7 @@ ptracer::get_regs (user_regs_struct *regs)
 {
   if (!attached_)
     return false;
-  int ret = ptrace (PTRACE_GETREGS, tid_, regs, NULL);
+  int ret = ptrace (PTRACE_GETREGS, tid_, NULL, regs);
   if (ret == -1)
     {
       LOGE ("ptracer::get_regs: %s\n", strerror (errno));
@@ -152,7 +162,7 @@ ptracer::set_regs (user_regs_struct *regs)
 {
   if (!attached_)
     return false;
-  int ret = ptrace (PTRACE_SETREGS, tid_, regs, NULL);
+  int ret = ptrace (PTRACE_SETREGS, tid_, NULL, regs);
   if (ret == -1)
     {
       LOGE ("ptracer::set_regs : %s\n", strerror (errno));
