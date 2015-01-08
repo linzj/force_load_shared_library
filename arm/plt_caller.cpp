@@ -33,7 +33,7 @@ plt_caller::call (ptracer *ptracer, intptr_t target_location, intptr_t target,
       LOGE ("plt_caller::fails to write memory\n");
       return false;
     }
-  bool is_thumb = (target & 1) != 0;
+  int is_thumb = (target & 1);
   target &= ~1;
   working.ARM_ip = target_location;
   working.ARM_pc = target;
@@ -41,14 +41,7 @@ plt_caller::call (ptracer *ptracer, intptr_t target_location, intptr_t target,
   working.ARM_r0 = sp;
   // the flags.
   working.ARM_r1 = RTLD_NOW;
-  if (is_thumb)
-    {
-      working.ARM_cpsr |= (1 << 5);          
-    }
-  else
-    {
-      working.ARM_cpsr &= ~(1 << 5);
-    }
+  working.ARM_cpsr ^= (working.ARM_cpsr & (1 << 5)) ^ (is_thumb << 5);
   
 
   // now the parameter has been setup. we still need to
