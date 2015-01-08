@@ -30,10 +30,6 @@ private:
   template <class dynamic_type>
   bool fill_impl_with_dyn (unsigned long start, unsigned long end,
                            ptracer *ptracer);
-  template <class elf_relocation_type>
-  bool deal_with_elf_relocation (unsigned long start, unsigned long end,
-                                 ptracer *ptracer, const char *name,
-                                 got_finder_client *client);
   struct got_finder_impl;
   std::auto_ptr<got_finder_impl> impl_;
 };

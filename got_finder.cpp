@@ -21,6 +21,15 @@ struct got_finder::got_finder_impl
   size_t plt_got_size_;
   int plt_got_rel_type_;
   mask_type filled_mask_;
+  bool fatal_occured_;
+
+  got_finder_impl ();
+
+  template <class elf_relocation_type, class elf_header_type>
+  bool deal_with_elf_relocation (unsigned long start, unsigned long end,
+                                 ptracer *ptracer, const char *name,
+                                 got_finder_client *client,
+                                 std::string &strtab);
 };
 
 static mask_type symtab_start_bit = (1 << 0);
@@ -31,6 +40,16 @@ static mask_type plt_got_size_bit = (1 << 4);
 static mask_type plt_got_rel_type_bit = (1 << 5);
 static mask_type mandatory_mask = (1 << 6) - 1;
 static mask_type mandatory_value = (1 << 6) - 1;
+
+#if defined(__x86_64__) && (__x86_64__ == 1)
+#define R_X86_64_JUMP_SLOT 7
+#define DESIGNATIVE_R_TYPE R_X86_64_JUMP_SLOT
+#elif defined(__arm__) && (__arm__ == 1)
+#define R_ARM_JUMP_SLOT 22
+#define DESIGNATIVE_R_TYPE R_ARM_JUMP_SLOT
+#else
+#error unsupported arch
+#endif
 
 inline static bool
 is_mandatory_set (mask_type filled)
@@ -101,6 +120,11 @@ got_finder::find (ptracer *ptracer, const char *name, pid_t tid,
       if (deal_with (start, end, ptracer, name, client))
         {
           _deal_with = true;
+          break;
+        }
+      // Will not continue if fatal occured.
+      if (impl_->fatal_occured_)
+        {
           break;
         }
     }
@@ -577,7 +601,7 @@ got_finder::deal_with (unsigned long start, unsigned long end,
   if (is_elf32)
     return deal_with_elf<Elf32_Ehdr> (start, end, ptracer, name, client);
   else
-    return deal_with_elf<elf64_hdr> (start, end, ptracer, name, client);
+    return deal_with_elf<Elf64_Ehdr> (start, end, ptracer, name, client);
 }
 
 template <class _elf_header_type> struct elf_deducer
@@ -592,6 +616,7 @@ template <> struct elf_deducer<Elf32_Ehdr>
   typedef Elf32_Rela elf_rela;
   typedef Elf32_Rel elf_rel;
   typedef Elf32_Dyn elf_dynamic;
+  typedef Elf32_Sym elf_sym;
 };
 
 template <> struct elf_deducer<Elf64_Ehdr>
@@ -601,7 +626,15 @@ template <> struct elf_deducer<Elf64_Ehdr>
   typedef Elf64_Rela elf_rela;
   typedef Elf64_Rel elf_rel;
   typedef Elf64_Dyn elf_dynamic;
+  typedef Elf64_Sym elf_sym;
 };
+
+template <class T>
+static inline T
+round_up (T t)
+{
+  return (t + sizeof (T) - 1) & ~(sizeof (T) - 1);
+}
 
 template <class dynamic_type>
 bool
@@ -670,6 +703,7 @@ got_finder::deal_with_elf (unsigned long start, unsigned long end,
   assert ((sizeof (hdr) & (sizeof (intptr_t) - 1)) == 0);
   if (!ptracer->read_memory (&hdr, sizeof (hdr), start))
     {
+      impl_->fatal_occured_ = true;
       return false;
     }
   elf_phdr phdr;
@@ -679,6 +713,7 @@ got_finder::deal_with_elf (unsigned long start, unsigned long end,
     {
       if (!ptracer->read_memory (&phdr, sizeof (phdr), phdr_indexer))
         {
+          impl_->fatal_occured_ = true;
           return false;
         }
       if (phdr.p_type == PT_DYNAMIC)
@@ -699,35 +734,139 @@ got_finder::deal_with_elf (unsigned long start, unsigned long end,
     }
   // fill str table
   std::string strtab;
-  size_t rounded_strtab_size = (impl_->strtab_size_ + sizeof (intptr_t) - 1)
-                               & ~(sizeof (intptr_t) - 1);
+  size_t rounded_strtab_size = round_up (impl_->strtab_size_);
   strtab.reserve (rounded_strtab_size);
   if (!ptracer->read_memory (reinterpret_cast<void *> (strtab.data ()),
                              rounded_strtab_size,
                              start + impl_->strtab_start_))
     {
       LOGE ("got_finder::deal_with_elf fill strtab fails\n");
+      impl_->fatal_occured_ = true;
       return false;
     }
   switch (impl_->plt_got_rel_type_)
     {
     case DT_RELA:
-      return deal_with_elf_relocation<elf_rela> (start, end, ptracer, name,
-                                                 client);
+      return impl_->deal_with_elf_relocation<elf_rela, elf_header_type> (
+          start, end, ptracer, name, client, strtab);
     case DT_REL:
-      return deal_with_elf_relocation<elf_rel> (start, end, ptracer, name,
-                                                client);
+      return impl_->deal_with_elf_relocation<elf_rel, elf_header_type> (
+          start, end, ptracer, name, client, strtab);
     default:
       LOGE ("got_finder::deal_with_elf: unexpected plt got rel type.\n");
+      impl_->fatal_occured_ = true;
       assert (false);
     }
 }
 
-template <class elf_relocation_type>
-bool
-got_finder::deal_with_elf_relocation (unsigned long start, unsigned long end,
-                                      ptracer *ptracer, const char *name,
-                                      got_finder_client *client)
+template <class relocation_type> struct relocation_deducer
 {
+};
+
+struct relocation_deducer_base_32
+{
+  static inline Elf32_Word
+  sym_index (Elf32_Word rinfo)
+  {
+    return ELF32_R_SYM (rinfo);
+  }
+
+  static inline Elf32_Word
+  type (Elf32_Word rinfo)
+  {
+    return ELF32_R_TYPE (rinfo);
+  }
+};
+
+struct relocation_deducer_base_64
+{
+  static inline Elf64_Xword
+  sym_index (Elf64_Xword rinfo)
+  {
+    return ELF64_R_SYM (rinfo);
+  }
+
+  static inline Elf64_Xword
+  type (Elf64_Xword rinfo)
+  {
+    return ELF64_R_TYPE (rinfo);
+  }
+};
+
+template <> struct relocation_deducer<Elf32_Rel> : relocation_deducer_base_32
+{
+  static const bool is_rela_ = false;
+};
+
+template <> struct relocation_deducer<Elf64_Rel> : relocation_deducer_base_64
+{
+  static const bool is_rela_ = false;
+};
+
+template <> struct relocation_deducer<Elf32_Rela> : relocation_deducer_base_32
+{
+  static const bool is_rela_ = true;
+};
+
+template <> struct relocation_deducer<Elf64_Rela> : relocation_deducer_base_64
+{
+  static const bool is_rela_ = true;
+};
+
+got_finder::got_finder_impl::got_finder_impl () : fatal_occured_ (false) {}
+
+template <class elf_relocation_type, class elf_header_type>
+bool
+got_finder::got_finder_impl::deal_with_elf_relocation (
+    unsigned long start, unsigned long end, ptracer *ptracer, const char *name,
+    got_finder_client *client, std::string &strtab)
+{
+  size_t rounded_plt_got_size = round_up (plt_got_size_);
+  char buf[rounded_plt_got_size];
+  if (!ptracer->read_memory (buf, rounded_plt_got_size,
+                             start + plt_got_start_))
+    {
+      LOGE ("got_finder::got_finder_impl::deal_with_elf_relocation:read "
+            "memory fails, %d.\n",
+            __LINE__);
+      fatal_occured_ = true;
+      return false;
+    }
+
+  typedef relocation_deducer<elf_relocation_type> myreldeducer;
+  typedef elf_deducer<elf_relocation_type> myelfdeducer;
+
+  for (
+      elf_relocation_type *r = reinterpret_cast<elf_relocation_type *> (buf);
+      r < reinterpret_cast<elf_relocation_type *> (buf + rounded_plt_got_size);
+      ++r)
+    {
+      if (myreldeducer::type (r->r_info) != DESIGNATIVE_R_TYPE)
+        {
+          continue;
+        }
+      size_t rounded_sym_size = round_up (sizeof (myelfdeducer::elf_sym));
+      char buf2[rounded_sym_size];
+      int sym_index = myreldeducer::sym_index (r->r_info);
+      if (!ptracer->read_memory (
+              buf2, rounded_sym_size,
+              start + sizeof (myelfdeducer::elf_sym) * sym_index
+                  + symtab_start_))
+        {
+          LOGE ("got_finder::got_finder_impl::deal_with_elf_relocation:read "
+                "memory fails, %d.\n",
+                __LINE__);
+          fatal_occured_ = true;
+          return false;
+        }
+      typename myelfdeducer::elf_sym *sym
+          = reinterpret_cast<typename myelfdeducer::elf_sym *> (buf2);
+      if (strcmp (strtab.data () + sym->st_name, name) != 0)
+        {
+          continue;
+        }
+      // a match.
+      return client->found (r->r_offset, ptracer);
+    }
   return false;
 }
