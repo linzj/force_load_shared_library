@@ -29,7 +29,23 @@ plt_caller::call (ptracer *ptracer, intptr_t target_location, intptr_t target,
       LOGE ("plt_caller::fails to write memory\n");
       return false;
     }
-  // Add 2 to ip comes from these code.
+  // Use gdb way:
+  // /* We must be careful with modifying the program counter.  If we
+  //    just interrupted a system call, the kernel might try to restart
+  //    it when we resume the inferior.  On restarting the system call,
+  //    the kernel will try backing up the program counter even though it
+  //    no longer points at the system call.  This typically results in a
+  //    SIGSEGV or SIGILL.  We can prevent this by writing `-1' in the
+  //    "orig_eax" pseudo-register.
+
+  //    Note that "orig_eax" is saved when setting up a dummy call frame.
+  //    This means that it is properly restored when that frame is
+  //    popped, and that the interrupted system call will be restarted
+  //    when we resume the inferior on return from a function call from
+  //    within GDB.  In all other cases the system call will not be
+  //    restarted.  */
+  // regcache_cooked_write_unsigned (regcache, I386_LINUX_ORIG_EAX_REGNUM, -1);
+
   // So that is the syscall returning to user space
   // with -ERESTARTNOINTR or -ERESTARTNOINTR.
   // static void
@@ -58,7 +74,8 @@ plt_caller::call (ptracer *ptracer, intptr_t target_location, intptr_t target,
   // 		}
   // 	}
 
-  working.rip = target + 2;
+  working.rip = target;
+  working.orig_rax = -1;
   // the file name.
   working.rdi = sp;
   // the flags.
@@ -82,6 +99,18 @@ plt_caller::call (ptracer *ptracer, intptr_t target_location, intptr_t target,
     }
   LOGI ("ptracer->continue_and_wait trying\n");
   ptracer->continue_and_wait ();
+#if 0
+  siginfo_t info;
+  ptracer->get_siginfo (&info);
+  LOGI ("siginfo si_signo = %d, si_code = %d, si_addr = %08lx, working.rip = "
+        "%08lx\n",
+        info.si_signo, info.si_code, info.si_addr, working.rip);
+  user_regs_struct r;
+  ptracer->get_regs (&r);
+  LOGI ("rax = %08lx, rbx = %08lx, rcx = %08lx, rdx = %08lx, rdi = %08lx, rsi "
+        "= %08lx, rsp = %08lx, rbp = %08lx, rip = %08lx\n",
+        r.rax, r.rbx, r.rcx, r.rdx, r.rdi, r.rsi, r.rsp, r.rbp, r.rip);
+#endif
   LOGI ("ptracer->continue_and_wait end\n");
   if (!ptracer->set_regs (&saved))
     {
