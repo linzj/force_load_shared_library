@@ -42,7 +42,6 @@ plt_caller::call (ptracer *ptracer, intptr_t target_location, intptr_t target,
   // the flags.
   working.ARM_r1 = RTLD_NOW;
   working.ARM_cpsr ^= (working.ARM_cpsr & (1 << 5)) ^ (is_thumb << 5);
-  
 
   // now the parameter has been setup. we still need to
   // setup the stack so that it align to 8 bytes.
