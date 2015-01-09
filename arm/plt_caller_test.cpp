@@ -52,8 +52,8 @@ do_test ()
 {
   ptracer ptracer (getppid ());
   got_finder finder;
-
-  assert (ptracer.attach ());
+  bool attached = ptracer.attach ();
+  assert (attached);
   test_got_finder_client client;
   finder.find (&ptracer, "dlopen", getppid (), &client);
   ptracer.detach ();

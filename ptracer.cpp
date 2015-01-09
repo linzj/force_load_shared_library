@@ -72,7 +72,7 @@ ptracer::read_memory (void *buffer, size_t s, intptr_t dest)
 {
   if (!attached_)
     {
-      LOGE ("ptracer::read_memory: not attached.\n");
+      LOGE ("ptracer::read_memory: not attached %d.\n", tid_);
 
       return false;
     }
