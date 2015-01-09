@@ -29,7 +29,35 @@ plt_caller::call (ptracer *ptracer, intptr_t target_location, intptr_t target,
       LOGE ("plt_caller::fails to write memory\n");
       return false;
     }
-  // FIXME:I dont' know why add 2.
+  // Add 2 to ip comes from these code.
+  // So that is the syscall returning to user space
+  // with -ERESTARTNOINTR or -ERESTARTNOINTR.
+  // static void
+  // handle_signal(struct ksignal *ksig, struct pt_regs *regs)
+  // {
+  // 	bool failed;
+  // 	/* Are we from a system call? */
+  // 	if (syscall_get_nr(current, regs) >= 0) {
+  // 		/* If so, check system call restarting.. */
+  // 		switch (syscall_get_error(current, regs)) {
+  // 		case -ERESTART_RESTARTBLOCK:
+  // 		case -ERESTARTNOHAND:
+  // 			regs->ax = -EINTR;
+  // 			break;
+  //
+  // 		case -ERESTARTSYS:
+  // 			if (!(ksig->ka.sa.sa_flags & SA_RESTART)) {
+  // 				regs->ax = -EINTR;
+  // 				break;
+  // 			}
+  // 		/* fallthrough */
+  // 		case -ERESTARTNOINTR:
+  // 			regs->ax = regs->orig_ax;
+  // 			regs->ip -= 2;
+  // 			break;
+  // 		}
+  // 	}
+
   working.rip = target + 2;
   // the file name.
   working.rdi = sp;

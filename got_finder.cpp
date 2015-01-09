@@ -580,8 +580,7 @@ got_finder::check_elf (unsigned long start, ptracer *ptracer, bool *is_elf32)
   unsigned char e_ident[EI_NIDENT];
   if (!ptracer->read_memory (e_ident, sizeof (e_ident), start))
     {
-      impl_->fatal_occured_ = true;
-      LOGE ("got_finder::check_elf: fails to read memory.\n");
+      LOGE ("got_finder::check_elf: fails to read memory: %08lx.\n", start);
       return false;
     }
   if (memcmp (e_ident, ELFMAG, SELFMAG))
