@@ -37,6 +37,14 @@ plt_caller::call (ptracer *ptracer, intptr_t target_location, intptr_t target,
   target &= ~1;
   working.ARM_ip = target_location;
   working.ARM_pc = target;
+  if (is_thumb)
+    {
+      working.ARM_pc += 2;
+    }
+  else
+    {
+      working.ARM_pc += 4;
+    }
   // the file name.
   working.ARM_r0 = sp;
   // the flags.
