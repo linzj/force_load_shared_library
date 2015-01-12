@@ -40,6 +40,7 @@ main (int argc, char **argv)
       fprintf (stderr, "<pid> <so lib path>");
       exit (1);
     }
+  errno = 0;
   pid_t pid = strtoul (argv[1], NULL, 10);
   if (errno)
     {
