@@ -4,13 +4,13 @@
 #include <stdint.h>
 
 class ptracer;
+struct found_info;
 
 class plt_caller
 {
 public:
   plt_caller ();
-  bool call (ptracer *ptracer, intptr_t plt_got_location,
-             intptr_t target_location, intptr_t target, const char *soname);
+  bool call (const found_info &info, const char *soname);
 
 private:
 };

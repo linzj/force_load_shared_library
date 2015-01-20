@@ -1,5 +1,6 @@
 #include "plt_caller.h"
 #include "ptracer.h"
+#include "found_info.h"
 #include "log.h"
 #include "round.h"
 #include <dlfcn.h>
@@ -40,10 +41,10 @@ struct user_regs_struct : _private::pt_regs
 };
 
 bool
-plt_caller::call (ptracer *ptracer, intptr_t, intptr_t target_location,
-                  intptr_t target, const char *soname)
+plt_caller::call (const found_info &info, const char *soname)
 {
   user_regs_struct saved;
+  class ptracer *ptracer = info.ptracer;
   if (!ptracer->get_regs (&saved))
     {
       LOGE ("plt_caller::call fails to saved regs\n");
@@ -61,9 +62,10 @@ plt_caller::call (ptracer *ptracer, intptr_t, intptr_t target_location,
       LOGE ("plt_caller::fails to write memory\n");
       return false;
     }
+  intptr_t target = info.target;
   int is_thumb = (target & 1);
   target &= ~1;
-  working.ARM_ip = target_location;
+  working.ARM_ip = info.target_location;
   working.ARM_pc = target;
 
   // the file name.

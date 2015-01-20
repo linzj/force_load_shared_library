@@ -12,8 +12,7 @@ public:
   my_got_finder_client (const char *);
 
 private:
-  virtual bool found (ptracer *ptracer, intptr_t plt_got_location,
-                      intptr_t target_location, intptr_t target);
+  virtual bool found (const found_info &);
 
   const char *so_name_;
 };
@@ -24,11 +23,10 @@ my_got_finder_client::my_got_finder_client (const char *so_name)
 }
 
 bool
-my_got_finder_client::found (ptracer *ptracer, intptr_t plt_got_location,
-                             intptr_t target_location, intptr_t target)
+my_got_finder_client::found (const found_info &info)
 {
   plt_caller caller;
-  caller.call (ptracer, plt_got_location, target_location, target, so_name_);
+  caller.call (info, so_name_);
   return true;
 }
 

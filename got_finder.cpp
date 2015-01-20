@@ -2,6 +2,7 @@
 #include "got_finder.h"
 #include "log.h"
 #include "round.h"
+#include "found_info.h"
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -907,7 +908,8 @@ got_finder::got_finder_impl::deal_with_elf_relocation (
 #ifdef ANDROID
       plt_got += start;
 #endif
-      return client->found (ptracer, plt_got, location, addr);
+      found_info finfo = { ptracer, plt_got, location, addr };
+      return client->found (finfo);
     }
   return false;
 }

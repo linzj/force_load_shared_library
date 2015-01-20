@@ -1,5 +1,6 @@
 #include "plt_caller.h"
 #include "ptracer.h"
+#include "found_info.h"
 #include "log.h"
 #include "round.h"
 #include <dlfcn.h>
@@ -8,11 +9,10 @@
 plt_caller::plt_caller () {}
 
 bool
-plt_caller::call (ptracer *ptracer, intptr_t plt_got_location,
-                  intptr_t target_location, intptr_t target,
-                  const char *soname)
+plt_caller::call (const found_info &info, const char *soname)
 {
   user_regs_struct saved;
+  class ptracer *ptracer = info.ptracer;
   if (!ptracer->get_regs (&saved))
     {
       LOGE ("plt_caller::call fails to saved regs\n");
@@ -76,8 +76,8 @@ plt_caller::call (ptracer *ptracer, intptr_t plt_got_location,
   // 		}
   // 	}
 
-  working.eip = target;
-  working.ebx = plt_got_location;
+  working.eip = info.target;
+  working.ebx = info.plt_got_location;
   working.orig_eax = -1;
 
   // now the parameter has been setup. we still need to

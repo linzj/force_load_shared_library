@@ -1,6 +1,7 @@
 #include "got_finder.h"
 #include "ptracer.h"
 #include "log.h"
+#include "found_info.h"
 #include <stdio.h>
 #include <assert.h>
 #include <dlfcn.h>
@@ -22,18 +23,16 @@ public:
   };
 
 private:
-  virtual bool found (ptracer *ptracer, intptr_t plt_got_location,
-                      intptr_t target_location, intptr_t target);
+  virtual bool found (const found_info &info);
   bool okay_;
 };
 
 test_got_finder_client::test_got_finder_client () : okay_ (false) {}
 
 bool
-test_got_finder_client::found (ptracer *ptracer, intptr_t plt_got_location,
-                               intptr_t target_location, intptr_t target)
+test_got_finder_client::found (const found_info &info)
 {
-  LOGI ("test_got_finder_client::found, found dlopen at %08lx\n", target);
+  LOGI ("test_got_finder_client::found, found dlopen at %08lx\n", info.target);
   okay_ = true;
   return false;
 }
