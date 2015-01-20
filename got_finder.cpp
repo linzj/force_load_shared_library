@@ -21,6 +21,7 @@ struct got_finder::got_finder_impl
   intptr_t jmprel_start_;
   size_t plt_got_size_;
   int plt_got_rel_type_;
+  intptr_t plt_got_;
   mask_type filled_mask_;
   bool fatal_occured_;
   bool is_dyn_;
@@ -40,8 +41,9 @@ static mask_type strtab_size_bit = (1 << 2);
 static mask_type jmprel_start_bit = (1 << 3);
 static mask_type plt_got_size_bit = (1 << 4);
 static mask_type plt_got_rel_type_bit = (1 << 5);
-static mask_type mandatory_mask = (1 << 6) - 1;
-static mask_type mandatory_value = (1 << 6) - 1;
+static mask_type plt_got_location_bit = (1 << 6);
+static mask_type mandatory_mask = (1 << 7) - 1;
+static mask_type mandatory_value = (1 << 7) - 1;
 
 #if defined(__x86_64__) && (__x86_64__ == 1)
 #define R_X86_64_JUMP_SLOT 7
@@ -49,6 +51,9 @@ static mask_type mandatory_value = (1 << 6) - 1;
 #elif defined(__arm__) && (__arm__ == 1)
 #define R_ARM_JUMP_SLOT 22
 #define DESIGNATIVE_R_TYPE R_ARM_JUMP_SLOT
+#elif defined(__i386__) && (__i386__ == 1)
+#define R_386_JUMP_SLOT 7
+#define DESIGNATIVE_R_TYPE R_386_JUMP_SLOT
 #else
 #error unsupported arch
 #endif
@@ -675,6 +680,10 @@ got_finder::fill_impl_with_dyn (unsigned long start, unsigned long end,
           impl_->plt_got_rel_type_ = pdyn->d_un.d_val;
           impl_->filled_mask_ |= plt_got_rel_type_bit;
           break;
+        case DT_PLTGOT:
+          impl_->plt_got_ = pdyn->d_un.d_ptr;
+          impl_->filled_mask_ |= plt_got_location_bit;
+          break;
         }
     }
   if (!is_mandatory_set (impl_->filled_mask_))
@@ -894,7 +903,11 @@ got_finder::got_finder_impl::deal_with_elf_relocation (
           fatal_occured_ = true;
           return false;
         }
-      return client->found (ptracer, location, addr);
+      intptr_t plt_got = plt_got_;
+#ifdef ANDROID
+      plt_got += start;
+#endif
+      return client->found (ptracer, plt_got, location, addr);
     }
   return false;
 }

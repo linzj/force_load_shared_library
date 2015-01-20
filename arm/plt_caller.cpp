@@ -40,8 +40,8 @@ struct user_regs_struct : _private::pt_regs
 };
 
 bool
-plt_caller::call (ptracer *ptracer, intptr_t target_location, intptr_t target,
-                  const char *soname)
+plt_caller::call (ptracer *ptracer, intptr_t, intptr_t target_location,
+                  intptr_t target, const char *soname)
 {
   user_regs_struct saved;
   if (!ptracer->get_regs (&saved))

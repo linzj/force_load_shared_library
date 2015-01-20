@@ -22,16 +22,16 @@ public:
   };
 
 private:
-  virtual bool found (ptracer *ptracer, intptr_t target_location,
-                      intptr_t target);
+  virtual bool found (ptracer *ptracer, intptr_t plt_got_location,
+                      intptr_t target_location, intptr_t target);
   bool okay_;
 };
 
 test_got_finder_client::test_got_finder_client () : okay_ (false) {}
 
 bool
-test_got_finder_client::found (ptracer *ptracer, intptr_t target_location,
-                               intptr_t target)
+test_got_finder_client::found (ptracer *ptracer, intptr_t plt_got_location,
+                               intptr_t target_location, intptr_t target)
 {
   LOGI ("test_got_finder_client::found, found dlopen at %08lx\n", target);
   okay_ = true;
