@@ -112,11 +112,11 @@ plt_caller::call (const found_info &info, const char *soname)
   LOGI ("ptracer->continue_and_wait trying\n");
   ptracer->continue_and_wait ();
 #if 0
-  siginfo_t info;
-  ptracer->get_siginfo (&info);
+  siginfo_t sinfo;
+  ptracer->get_siginfo (&sinfo);
   LOGI ("siginfo si_signo = %d, si_code = %d, si_addr = %08lx, working.eip = "
         "%08lx\n",
-        info.si_signo, info.si_code, info.si_addr, working.eip);
+        sinfo.si_signo, sinfo.si_code, sinfo.si_addr, working.eip);
   user_regs_struct r;
   ptracer->get_regs (&r);
   LOGI ("eax = %08lx, ebx = %08lx, ecx = %08lx, edx = %08lx, edi = %08lx, esi "
